@@ -1,1 +1,739 @@
+<!DOCTYPE html>
+<html lang="ja">
 
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ファイルストア</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://widget.cloudinary.com/v2.0/global/all.js" type="text/javascript"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <<link rel="apple-touch-icon" href=title.png">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        crypto: {
+                            dark: '#020617',
+                            panel: 'rgba(15, 23, 42, 0.7)',
+                            neon: '#38bdf8',
+                            accent: '#8b5cf6',
+                            success: '#10b981'
+                        }
+                    },
+                    boxShadow: {
+                        'neon-blue': '0 0 20px rgba(56, 189, 248, 0.3)',
+                        'neon-purple': '0 0 20px rgba(139, 92, 246, 0.3)',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&display=swap');
+
+        body {
+            background: #020617;
+            background-image: radial-gradient(circle at 20% 30%, rgba(56, 189, 248, 0.15) 0%, transparent 40%),
+                radial-gradient(circle at 80% 70%, rgba(139, 92, 246, 0.15) 0%, transparent 40%);
+            min-height: 100vh;
+            color: #f1f5f9;
+            font-family: 'Rajdhani', sans-serif, "Hiragino Kaku Gothic ProN", "Meiryo";
+        }
+
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 1.25rem;
+            transition: all 0.3s ease;
+        }
+
+        .glass-panel:hover {
+            border-color: rgba(56, 189, 248, 0.4);
+        }
+
+        .input-field {
+            background: rgba(2, 6, 23, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 0.75rem;
+            padding: 0.85rem;
+            width: 100%;
+            color: white;
+            outline: none;
+            transition: all 0.3s;
+        }
+
+        .input-field:focus {
+            border-color: #38bdf8;
+            box-shadow: 0 0 15px rgba(56, 189, 248, 0.2);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #38bdf8 0%, #8b5cf6 100%);
+            padding: 0.85rem 1.5rem;
+            border-radius: 0.75rem;
+            font-weight: 700;
+            transition: all 0.3s;
+            cursor: pointer;
+            border: none;
+            width: 100%;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(139, 92, 246, 0.5);
+            opacity: 0.9;
+        }
+
+        .crypto-card {
+            position: relative;
+            overflow: hidden;
+        }
+        
+        /* チャット用スクロールバーカスタマイズ */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb { background: rgba(139, 92, 246, 0.5); border-radius: 10px; }
+    </style>
+</head>
+
+<body class="antialiased">
+    <script>
+        // Supabaseの設定
+        const SUPABASE_URL = 'https://qtlgtzomttawqkevjrus.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_vo-bFWrSqWYFRvDQD0c9MQ_ZSIB_Mfs';
+
+        // Cloudinaryの設定
+        const CLOUDINARY_CLOUD_NAME = 'dve5uuzss';
+        const CLOUDINARY_UPLOAD_PRESET = 'ml_default';
+
+        // Supabaseクライアントの初期化
+        const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    </script>
+
+    <div id="app" class="p-6 max-w-6xl mx-auto min-h-screen flex flex-col justify-center relative">
+
+        <!-- ▼ ログイン / 新規登録画面 ▼ -->
+        <div id="auth-section" class="max-w-md mx-auto glass-panel p-10 shadow-neon-blue" style="display: none;">
+            <div class="text-center mb-10">
+                <div class="inline-block p-4 rounded-2xl bg-crypto-dark mb-4 border border-crypto-neon/30 shadow-neon-blue">
+                    <i class="fa-brands fa-hive text-5xl text-crypto-neon"></i>
+                </div>
+                <h1 class="text-3xl font-bold tracking-tighter">CRYPTO MARKET</h1>
+                <p class="text-gray-400 text-sm mt-2 tracking-widest" id="auth-subtitle">ファイルストア</p>
+            </div>
+
+            <form id="auth-form" onsubmit="handleAuth(event)">
+                <div class="mb-5">
+                    <label class="block text-xs font-bold mb-2 text-crypto-neon uppercase">ユーザー名</label>
+                    <input type="text" id="username" class="input-field" required>
+                </div>
+                <div class="mb-5">
+                    <label class="block text-xs font-bold mb-2 text-crypto-neon uppercase">パスワード</label>
+                    <input type="password" id="password" class="input-field" required>
+                </div>
+                <div id="confirm-password-div" class="mb-8" style="display: none;">
+                    <label class="block text-xs font-bold mb-2 text-crypto-accent uppercase">パスワード（確認）</label>
+                    <input type="password" id="password-confirm" class="input-field">
+                </div>
+                <button type="submit" class="btn-primary" id="auth-btn">ログイン</button>
+            </form>
+
+            <div class="mt-8 text-center text-sm">
+                <a href="#" onclick="toggleAuthMode()" id="auth-toggle-link" class="text-gray-400 hover:text-crypto-neon transition-colors">
+                    アカウントをお持ちでないですか？ <span class="text-crypto-neon font-bold">新規登録</span>
+                </a>
+            </div>
+        </div>
+
+        <!-- ▼ メイン画面 ▼ -->
+        <div id="main-section" style="display: none;" class="w-full mt-10 pb-20">
+            <header class="flex flex-col md:flex-row justify-between items-center glass-panel p-6 mb-10 border-l-4 border-l-crypto-neon">
+                <div class="flex items-center gap-4 mb-4 md:mb-0">
+                    <div class="p-2 bg-crypto-dark rounded-lg border border-crypto-neon/20">
+                        <i class="fa-brands fa-hive text-3xl text-crypto-neon"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-2xl font-bold tracking-tight">CRYPTO FILE MARKET</h1>
+                        <p class="text-xs text-crypto-neon tracking-widest uppercase opacity-70">分散型マーケットプレイス</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-6">
+                    <div class="flex items-center gap-4 bg-black/30 px-5 py-2 rounded-full border border-white/5">
+                        
+                        <!-- アバターアイコン -->
+                        <div class="relative group cursor-pointer" onclick="uploadAvatar()" title="アイコンを変更">
+                            <img id="user-avatar" src="" class="w-10 h-10 rounded-full border-2 border-crypto-neon group-hover:border-crypto-accent transition-all object-cover bg-crypto-dark">
+                            <div class="absolute inset-0 bg-black/60 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                <i class="fa-solid fa-camera text-[10px] text-white"></i>
+                            </div>
+                        </div>
+
+                        <div class="text-right">
+                            <div class="text-[10px] text-gray-500 font-bold" id="user-display-name">---</div>
+                            <div class="text-xl font-bold text-crypto-success flex items-center gap-2">
+                                <i class="fa-solid fa-coins text-sm"></i><span id="user-balance">0</span><span class="text-[10px] text-gray-400">P</span>
+                            </div>
+                        </div>
+                    </div>
+                    <button onclick="logout()" class="p-3 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all border border-red-500/20" title="ログアウト">
+                        <i class="fa-solid fa-right-from-bracket"></i>
+                    </button>
+                </div>
+            </header>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-10">
+                <div class="lg:col-span-2 space-y-6">
+                    <h2 class="text-xl font-bold flex items-center gap-3">
+                        <span class="w-2 h-6 bg-crypto-neon rounded-full"></span>
+                        マーケットプレイス
+                    </h2>
+                    <div id="files-container" class="grid grid-cols-1 sm:grid-cols-2 gap-6"></div>
+                </div>
+
+                <div class="space-y-6">
+                    <div class="glass-panel p-8 sticky top-6 border-t-4 border-t-crypto-accent shadow-neon-purple">
+                        <h2 class="text-xl font-bold mb-6 flex items-center gap-3">
+                            <i class="fa-solid fa-upload text-crypto-accent"></i>
+                            ファイルを出品
+                        </h2>
+                        <form id="upload-form" onsubmit="handleUpload(event)" class="space-y-5">
+                            <div>
+                                <label class="block text-[10px] font-bold mb-2 text-gray-400 uppercase tracking-widest">タイトル</label>
+                                <input type="text" id="file-title" class="input-field" required>
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold mb-2 text-gray-400 uppercase tracking-widest">説明</label>
+                                <textarea id="file-desc" class="input-field" rows="3"></textarea>
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold mb-2 text-gray-400 uppercase tracking-widest">価格 (ポイント)</label>
+                                <input type="number" id="file-price" class="input-field" required min="1" value="100">
+                            </div>
+                            
+                            <!-- サムネイル設定 -->
+                            <div>
+                                <label class="block text-[10px] font-bold mb-2 text-crypto-accent uppercase tracking-widest">サムネイル画像 (任意)</label>
+                                <button type="button" id="thumbnail_widget" class="w-full bg-crypto-accent/10 hover:bg-crypto-accent/20 text-crypto-accent py-3 rounded-xl border border-dashed border-crypto-accent/30 transition-all flex flex-col items-center gap-1">
+                                    <i class="fa-regular fa-image text-xl"></i>
+                                    <span class="text-[10px] font-bold uppercase" id="thumbnail_label">画像を選択</span>
+                                </button>
+                                <input type="hidden" id="thumbnail-url-hidden">
+                                <img id="thumbnail-preview" class="mt-2 h-24 w-full object-cover rounded-lg hidden border border-crypto-accent/30 shadow-neon-purple">
+                            </div>
+
+                            <!-- ファイル設定 -->
+                            <div>
+                                <label class="block text-[10px] font-bold mb-2 text-gray-400 uppercase tracking-widest">アップロードファイル</label>
+                                <button type="button" id="upload_widget" class="w-full bg-white/5 hover:bg-white/10 text-white py-4 rounded-xl border border-dashed border-white/20 transition-all flex flex-col items-center gap-2">
+                                    <i class="fa-solid fa-cloud-arrow-up text-2xl text-crypto-neon"></i>
+                                    <span class="text-xs font-bold uppercase">ファイルを選択</span>
+                                </button>
+                                <input type="hidden" id="file-url-hidden" required>
+                                <p id="upload-status" class="text-[10px] text-crypto-success mt-2 hidden text-center font-bold">準備完了</p>
+                            </div>
+
+                            <button type="submit" class="btn-primary mt-4">出品を開始する</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ▼ チャットウィジェット ▼ -->
+        <div id="chat-widget" class="fixed bottom-0 right-4 w-80 sm:w-96 glass-panel shadow-neon-purple flex flex-col transition-transform duration-300 transform translate-y-[calc(100%-3rem)] z-50 rounded-b-none" style="display: none;">
+            <div class="p-3 bg-crypto-dark/90 rounded-t-[1.25rem] flex justify-between items-center cursor-pointer border-b border-white/10" onclick="toggleChat()">
+                <h3 class="font-bold text-sm flex items-center gap-2">
+                    <i class="fa-regular fa-comments text-crypto-neon"></i> グローバルチャット
+                </h3>
+                <i id="chat-icon" class="fa-solid fa-chevron-up text-xs text-gray-400 transition-transform"></i>
+            </div>
+            <div class="h-80 p-4 overflow-y-auto flex flex-col gap-4 bg-crypto-dark/50 backdrop-blur-md" id="chat-messages">
+                <!-- メッセージがここに表示されます -->
+            </div>
+            <form class="p-3 border-t border-white/10 flex gap-2 bg-crypto-dark/80" onsubmit="sendChatMessage(event)">
+                <input type="text" id="chat-input" class="input-field py-2 text-sm bg-black/50" placeholder="メッセージを入力... (200文字以内)" required autocomplete="off" maxlength="200">
+                <button type="submit" class="bg-crypto-accent hover:bg-purple-500 text-white px-4 rounded-xl transition-colors shadow-neon-purple">
+                    <i class="fa-solid fa-paper-plane"></i>
+                </button>
+            </form>
+        </div>
+
+    </div>
+
+    <script>
+        let isSignUpMode = false;
+        let currentUser = null;
+        let currentProfile = null;
+        let chatSubscription = null;
+
+        window.onload = async () => {
+            const { data: { session } } = await db.auth.getSession();
+            if (session) {
+                currentUser = session.user;
+                showMain();
+            } else {
+                showAuth();
+            }
+        };
+
+        function showAuth() {
+            document.getElementById('auth-section').style.display = 'block';
+            document.getElementById('main-section').style.display = 'none';
+            document.getElementById('chat-widget').style.display = 'none';
+        }
+
+        async function showMain() {
+            document.getElementById('auth-section').style.display = 'none';
+            document.getElementById('main-section').style.display = 'block';
+            document.getElementById('chat-widget').style.display = 'flex';
+            
+            await loadProfile();
+            await checkLoginBonus();
+            await loadFiles();
+            loadChatMessages();
+        }
+
+        function toggleAuthMode() {
+            isSignUpMode = !isSignUpMode;
+            document.getElementById('confirm-password-div').style.display = isSignUpMode ? 'block' : 'none';
+            document.getElementById('auth-btn').innerText = isSignUpMode ? '新規登録' : 'ログイン';
+            document.getElementById('auth-subtitle').innerText = isSignUpMode ? '登録して1000pを獲得' : 'ファイルストア';
+            document.getElementById('auth-toggle-link').innerHTML = isSignUpMode ?
+                'すでにアカウントをお持ちですか？ <span class="text-crypto-neon font-bold">ログイン</span>' :
+                'アカウントをお持ちでないですか？ <span class="text-crypto-neon font-bold">新規登録</span>';
+            document.getElementById('password-confirm').required = isSignUpMode;
+        }
+
+        async function handleAuth(e) {
+            e.preventDefault();
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            // 修正箇所 1: 変数usernameを埋め込み
+            const dummyEmail = `${username}@cryptomarket.local`;
+
+            if (isSignUpMode) {
+                const passwordConfirm = document.getElementById('password-confirm').value;
+                if (password !== passwordConfirm) {
+                    alert('エラー: パスワードが一致しません');
+                    return;
+                }
+                const { data, error } = await db.auth.signUp({
+                    email: dummyEmail,
+                    password: password,
+                    options: { data: { username: username } }
+                });
+                
+                if (error) {
+                    alert('登録失敗: ' + error.message);
+                } else {
+                    // プロフィールと1000ptの付与はデータベースのトリガーが自動で行うため、フロントからの送信は削除
+                    alert('登録成功！1000pが付与されました。');
+                    window.location.reload();
+                }
+            } else {
+                const { error } = await db.auth.signInWithPassword({
+                    email: dummyEmail,
+                    password: password,
+                });
+                if (error) alert('ログイン失敗: ユーザー名またはパスワードが正しくありません');
+                else window.location.reload();
+            }
+        }
+
+        async function logout() {
+            await db.auth.signOut();
+            window.location.reload();
+        }
+
+        async function loadProfile() {
+            const { data } = await db.from('profiles').select('*').eq('id', currentUser.id).single();
+            if (data) {
+                currentProfile = data;
+                document.getElementById('user-display-name').innerText = data.username;
+                document.getElementById('user-balance').innerText = (data.balance || 0).toLocaleString();
+                
+                // アバターの設定
+                const avatarImg = document.getElementById('user-avatar');
+                if (data.avatar_url) {
+                    avatarImg.src = data.avatar_url;
+                } else {
+                    avatarImg.src = `https://ui-avatars.com/api/?name=${data.username}&background=0f172a&color=38bdf8`;
+                }
+            }
+        }
+
+          async function checkLoginBonus() {
+            try {
+                // 安全なデータベース関数を呼び出す
+                const { data, error } = await db.rpc('claim_login_bonus');
+                
+                // 成功し、かつボーナスが付与された場合のみアラートを出す
+                if (data && data.success) {
+                    alert(`🎁 ログインボーナス！\n+${data.bonus} ポイント獲得しました！`);
+                    await loadProfile(); // 画面のポイント表示を更新
+                } else if (data && !data.success) {
+                    // 今日すでに受け取っている場合は何もしない（裏側でログだけ出す）
+                    console.log(data.message);
+                } else if (error) {
+                    console.error("Login bonus error:", error);
+                }
+            } catch (e) {
+                console.error("Login bonus handled error:", e);
+            }
+        }
+
+        // 【変更】商品の期限チェック・削除通知・延長ボタンを追加
+async function loadFiles() {
+    const { data: files } = await db.from('files').select(`*, profiles!seller_id(username)`).order('created_at', { ascending: false });
+    const container = document.getElementById('files-container');
+    container.innerHTML = '';
+    
+    if (files) {
+        const THREE_WEEKS_MS = 21 * 24 * 60 * 60 * 1000;
+        const now = new Date().getTime();
+        
+        const validFiles = [];
+        const expiredMyFiles = [];
+
+        // 期限切れをチェック
+        files.forEach(file => {
+            // updated_at(更新日) がなければ created_at(作成日) を基準にする
+            const lastUpdated = new Date(file.updated_at || file.created_at).getTime();
+            if (now - lastUpdated > THREE_WEEKS_MS) {
+                // 自分の商品で3週間経過しているものをリストアップ
+                if (file.seller_id === currentUser.id) {
+                    expiredMyFiles.push(file);
+                }
+            } else {
+                validFiles.push(file); // 有効なものだけ残す
+            }
+        });
+
+        // 自分の期限切れファイルがあればDBから削除してアラート通知
+        if (expiredMyFiles.length > 0) {
+            let deletedTitles = [];
+            for (const f of expiredMyFiles) {
+                await db.from('files').delete().eq('id', f.id);
+                deletedTitles.push(f.title);
+            }
+            alert(`【通知】以下のファイルは3週間変動がなかったため、自動的に削除されました。\n\n・${deletedTitles.join('\n・')}`);
+        }
+
+        // 有効なファイルのみを描画
+        validFiles.forEach(file => {
+            const isMine = file.seller_id === currentUser.id;
+            
+            const thumbnailHtml = file.thumbnail_url 
+                ? `<img src="${file.thumbnail_url}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">`
+                : `<div class="w-full h-full flex items-center justify-center"><i class="fa-solid fa-file-code text-5xl text-crypto-neon/20 group-hover:text-crypto-neon/50 transition-colors"></i></div>`;
+
+            const card = document.createElement('div');
+            card.className = "glass-panel p-5 crypto-card group flex flex-col";
+            card.innerHTML = `
+                <div class="w-full aspect-video bg-black/40 rounded-xl mb-4 overflow-hidden border border-white/5 relative">
+                    ${thumbnailHtml}
+                    <div class="absolute top-2 right-2 bg-crypto-accent/90 backdrop-blur text-white text-[10px] font-black px-3 py-1.5 rounded-full shadow-neon-purple">
+                        <i class="fa-solid fa-coins mr-1"></i>${file.price} P
+                    </div>
+                </div>
+                <h3 class="text-lg font-bold truncate text-white mb-1">${file.title}</h3>
+                <p class="text-xs text-gray-400 mb-3 h-8 line-clamp-2">${file.description || '説明なし'}</p>
+                
+                <div class="mt-auto">
+                    <div class="flex items-center gap-2 mb-4">
+                        <i class="fa-solid fa-circle-user text-gray-500"></i>
+                        <span class="text-[10px] text-gray-400 font-bold tracking-wider">${file.profiles.username}</span>
+                    </div>
+                    ${isMine 
+                        ? `<div class="flex gap-2">
+                             <button disabled class="flex-1 bg-white/5 text-gray-500 py-3 rounded-xl text-xs font-bold uppercase border border-white/5">出品中</button>
+                             <button onclick="extendFile('${file.id}')" class="flex-1 bg-crypto-neon/10 hover:bg-crypto-neon text-crypto-neon hover:text-white border border-crypto-neon/30 py-3 rounded-xl text-xs font-black uppercase transition-all shadow-[0_0_15px_rgba(56,189,248,0.1)]">期間延長</button>
+                           </div>` 
+                        : `<button onclick="buyFile('${file.id}', '${file.seller_id}', ${file.price})" class="w-full bg-crypto-success/10 hover:bg-crypto-success text-crypto-success hover:text-white border border-crypto-success/30 py-3 rounded-xl text-xs font-black uppercase transition-all shadow-[0_0_15px_rgba(16,185,129,0.1)] hover:shadow-[0_0_20px_rgba(16,185,129,0.4)]">購入する</button>` 
+                    }
+                </div>
+            `;
+            container.appendChild(card);
+        });
+    }
+}
+
+// 【新規追加】期間延長関数（JSのどこかに追加してください）
+async function extendFile(fileId) {
+    if (confirm('出品期間を現在から3週間に延長しますか？')) {
+        const { error } = await db.from('files').update({ updated_at: new Date().toISOString() }).eq('id', fileId);
+        if (error) {
+            alert('延長に失敗しました: ' + error.message);
+        } else {
+            alert('期間を延長しました！');
+            loadFiles();
+        }
+    }
+}
+
+        // ▼ Cloudinary ウィジェット設定 ▼
+
+        // 1. ファイル本体用
+        const uploadWidget = cloudinary.createUploadWidget({
+            cloudName: CLOUDINARY_CLOUD_NAME,
+            uploadPreset: CLOUDINARY_UPLOAD_PRESET,
+            sources: ['local'],
+            multiple: false
+        }, (error, result) => {
+            if (!error && result && result.event === "success") {
+                document.getElementById('file-url-hidden').value = result.info.secure_url;
+                document.getElementById('upload-status').style.display = 'block';
+                document.getElementById('upload_widget').innerHTML = '<i class="fa-solid fa-check text-crypto-success text-2xl"></i><span class="text-xs font-bold uppercase">ファイル選択済み</span>';
+            }
+        });
+        document.getElementById("upload_widget").addEventListener("click", () => uploadWidget.open());
+
+        // 2. サムネイル用
+        const thumbnailWidget = cloudinary.createUploadWidget({
+            cloudName: CLOUDINARY_CLOUD_NAME,
+            uploadPreset: CLOUDINARY_UPLOAD_PRESET,
+            sources: ['local', 'url'],
+            multiple: false,
+            clientAllowedFormats: ['images'],
+        }, (error, result) => {
+            if (!error && result && result.event === "success") {
+                document.getElementById('thumbnail-url-hidden').value = result.info.secure_url;
+                document.getElementById('thumbnail_label').innerText = '画像設定完了';
+                const preview = document.getElementById('thumbnail-preview');
+                preview.src = result.info.secure_url;
+                preview.classList.remove('hidden');
+            }
+        });
+        document.getElementById("thumbnail_widget").addEventListener("click", () => thumbnailWidget.open());
+
+        // 3. アバター用 (★Cloudinaryを使わず、ローカルの画像を直接設定できるように修正しました)
+         function uploadAvatar() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/*';
+            input.onchange = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                
+                if (file.size > 2 * 1024 * 1024) {
+                    alert('ファイルサイズは2MB以下にしてください。');
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = async (event) => {
+                    const base64Url = event.target.result;
+                    
+                    // 🚨 ここを書き換える！（直接更新ではなく、安全な専用関数を呼ぶ）
+                    const { error: updateError } = await db.rpc('update_avatar', { p_avatar_url: base64Url });
+                    
+                    if (!updateError) {
+                        document.getElementById('user-avatar').src = base64Url;
+                        currentProfile.avatar_url = base64Url;
+                    } else {
+                        alert('アイコンの更新に失敗しました: ' + updateError.message);
+                    }
+                };
+                reader.readAsDataURL(file);
+            };
+            input.click();
+        }
+
+        // ファイル出品処理
+        async function handleUpload(e) {
+            e.preventDefault();
+            const title = document.getElementById('file-title').value;
+            const desc = document.getElementById('file-desc').value;
+            const price = document.getElementById('file-price').value;
+            const fileUrl = document.getElementById('file-url-hidden').value;
+            const thumbnailUrl = document.getElementById('thumbnail-url-hidden').value;
+
+            if (!fileUrl) return alert('ファイルを選択してください');
+
+            const { error } = await db.from('files').insert([{
+                seller_id: currentUser.id,
+                title: title,
+                description: desc,
+                price: price,
+                file_url: fileUrl,
+                thumbnail_url: thumbnailUrl || null // サムネイル追加
+            }]);
+
+            if (error) {
+                alert('出品失敗: ' + error.message);
+            } else {
+                alert('出品が完了しました！');
+                e.target.reset();
+                document.getElementById('upload-status').style.display = 'none';
+                document.getElementById('upload_widget').innerHTML = '<i class="fa-solid fa-cloud-arrow-up text-2xl text-crypto-neon"></i><span class="text-xs font-bold uppercase">ファイルを選択</span>';
+                document.getElementById('file-url-hidden').value = '';
+                
+                document.getElementById('thumbnail-url-hidden').value = '';
+                document.getElementById('thumbnail_label').innerText = '画像を選択';
+                document.getElementById('thumbnail-preview').classList.add('hidden');
+                
+                loadFiles();
+            }
+        }
+
+         async function buyFile(fileId, sellerId, price) {
+            if (currentProfile.balance < price) return alert('ポイントが足りません');
+            
+            if (confirm(`${price} ポイントで購入しますか？`)) {
+                try {
+                    // ★修正：フロントで計算せず、作成した安全なデータベース関数を呼び出す
+                    const { error } = await db.rpc('buy_file', { p_file_id: fileId });
+
+                    if (error) {
+                        throw error;
+                    }
+
+                    // 購入成功後にファイルのURLを取得して開く
+                    const { data: fileData, error: fileError } = await db.from('files').select('file_url').eq('id', fileId).single();
+                    if (fileError) throw fileError;
+
+                    alert('購入完了！ファイルのダウンロード画面を開きます。');
+                    if (fileData) window.open(fileData.file_url, '_blank');
+                    
+                    // UI更新
+                    await loadProfile();
+                    loadFiles();
+
+                } catch(e) {
+                    alert('エラーが発生しました: ' + (e.message || '処理に失敗しました'));
+                }
+            }
+        }
+        // ▼ グローバルチャット機能 ▼
+
+        function toggleChat() {
+            const chat = document.getElementById('chat-widget');
+            const icon = document.getElementById('chat-icon');
+            if (chat.classList.contains('translate-y-[calc(100%-3rem)]')) {
+                chat.classList.remove('translate-y-[calc(100%-3rem)]');
+                icon.classList.replace('fa-chevron-up', 'fa-chevron-down');
+            } else {
+                chat.classList.add('translate-y-[calc(100%-3rem)]');
+                icon.classList.replace('fa-chevron-down', 'fa-chevron-up');
+            }
+        }
+
+        // 【変更】取得件数を30件から50件に変更
+async function loadChatMessages() {
+    const { data } = await db.from('messages')
+        .select(`*, profiles!user_id(username, avatar_url)`)
+        .order('created_at', { ascending: false })
+        .limit(50); // ← ここを50に変更
+    
+    const container = document.getElementById('chat-messages');
+    container.innerHTML = '';
+    
+    if (data) {
+        data.reverse().forEach(msg => appendChatMessage(msg));
+        container.scrollTop = container.scrollHeight;
+    }
+
+    if (!chatSubscription) {
+        chatSubscription = db.channel('public:messages')
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, async payload => {
+                const { data: userData } = await db.from('profiles').select('username, avatar_url').eq('id', payload.new.user_id).single();
+                const newMsg = { ...payload.new, profiles: userData };
+                appendChatMessage(newMsg);
+                container.scrollTop = container.scrollHeight;
+            }).subscribe();
+    }
+}
+
+// 【変更】表示が50件を超えたら古いDOMを自動削除する処理を追加
+function appendChatMessage(msg) {
+    const container = document.getElementById('chat-messages');
+    const isMine = msg.user_id === currentUser.id;
+    const defaultAvatar = `https://ui-avatars.com/api/?name=${msg.profiles?.username || 'U'}&background=0f172a&color=38bdf8`;
+    const avatar = msg.profiles?.avatar_url || defaultAvatar;
+    const username = msg.profiles?.username || 'Unknown User';
+    
+    const div = document.createElement('div');
+    div.className = `flex gap-3 ${isMine ? 'flex-row-reverse' : ''} animate-fade-in`;
+    div.innerHTML = `
+        <img src="${avatar}" class="w-8 h-8 rounded-full object-cover border border-white/10 flex-shrink-0">
+        <div class="flex flex-col ${isMine ? 'items-end' : 'items-start'} max-w-[75%]">
+            <span class="text-[9px] text-gray-400 mb-1 pl-1">${username}</span>
+            <div class="px-4 py-2 text-sm shadow-md break-words w-full ${isMine ? 'bg-crypto-accent text-white rounded-2xl rounded-tr-none' : 'bg-white/10 text-gray-200 rounded-2xl rounded-tl-none'}">
+                ${msg.content}
+            </div>
+        </div>
+    `;
+    container.appendChild(div);
+
+    // ▼ 追加：DOM上で50件を超えたら一番古いメッセージを消す ▼
+    while (container.children.length > 50) {
+        container.removeChild(container.firstChild);
+    }
+}
+
+// 【変更】念のためJS側でも200文字チェックを入れる
+async function sendChatMessage(e) {
+    e.preventDefault();
+    const input = document.getElementById('chat-input');
+    const content = input.value.trim();
+    if (!content) return;
+    
+    if (content.length > 200) {
+        return alert('メッセージは200文字以内で入力してください。');
+    }
+    
+    input.value = '';
+    const { error } = await db.from('messages').insert([{
+        user_id: currentUser.id,
+        content: content
+    }]);
+    
+    if (error) console.error("Chat error:", error);
+}
+
+        function appendChatMessage(msg) {
+            const container = document.getElementById('chat-messages');
+            const isMine = msg.user_id === currentUser.id;
+            
+            const defaultAvatar = `https://ui-avatars.com/api/?name=${msg.profiles?.username || 'U'}&background=0f172a&color=38bdf8`;
+            const avatar = msg.profiles?.avatar_url || defaultAvatar;
+            const username = msg.profiles?.username || 'Unknown User';
+            
+            const div = document.createElement('div');
+            div.className = `flex gap-3 ${isMine ? 'flex-row-reverse' : ''} animate-fade-in`;
+            // 修正箇所 4: avatarとusernameの埋め込みを追加
+            div.innerHTML = `
+                <img src="${avatar}" class="w-8 h-8 rounded-full object-cover border border-white/10 flex-shrink-0">
+                <div class="flex flex-col ${isMine ? 'items-end' : 'items-start'} max-w-[75%]">
+                    <span class="text-[9px] text-gray-400 mb-1 pl-1">${username}</span>
+                    <div class="px-4 py-2 text-sm shadow-md break-words w-full ${isMine ? 'bg-crypto-accent text-white rounded-2xl rounded-tr-none' : 'bg-white/10 text-gray-200 rounded-2xl rounded-tl-none'}">
+                        ${msg.content}
+                    </div>
+                </div>
+            `;
+            container.appendChild(div);
+        }
+
+        async function sendChatMessage(e) {
+            e.preventDefault();
+            const input = document.getElementById('chat-input');
+            const content = input.value.trim();
+            if (!content) return;
+            
+            input.value = '';
+            const { error } = await db.from('messages').insert([{
+                user_id: currentUser.id,
+                content: content
+            }]);
+            
+            if (error) console.error("Chat error:", error);
+        }
+    </script>
+</body>
+
+</html>
