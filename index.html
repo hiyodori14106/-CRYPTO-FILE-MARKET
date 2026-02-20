@@ -9,7 +9,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://widget.cloudinary.com/v2.0/global/all.js" type="text/javascript"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <<link rel="apple-touch-icon" href=title.png">
+    <link rel="apple-touch-icon" href=title.png">
     <script>
         tailwind.config = {
             theme: {
@@ -227,15 +227,11 @@
                             </div>
 
                             <!-- ファイル設定 -->
-                            <div>
-                                <label class="block text-[10px] font-bold mb-2 text-gray-400 uppercase tracking-widest">アップロードファイル</label>
-                                <button type="button" id="upload_widget" class="w-full bg-white/5 hover:bg-white/10 text-white py-4 rounded-xl border border-dashed border-white/20 transition-all flex flex-col items-center gap-2">
-                                    <i class="fa-solid fa-cloud-arrow-up text-2xl text-crypto-neon"></i>
-                                    <span class="text-xs font-bold uppercase">ファイルを選択</span>
-                                </button>
-                                <input type="hidden" id="file-url-hidden" required>
-                                <p id="upload-status" class="text-[10px] text-crypto-success mt-2 hidden text-center font-bold">準備完了</p>
-                            </div>
+<div>
+    <label class="block text-[10px] font-bold mb-2 text-crypto-success uppercase tracking-widest">アップロードファイル (暗号化保存)</label>
+    <input type="file" id="actual-file-input" class="w-full text-sm text-gray-400 bg-white/5 p-3 rounded-xl border border-white/10 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-crypto-neon/10 file:text-crypto-neon hover:file:bg-crypto-neon/20 cursor-pointer" required>
+</div>
+
 
                             <button type="submit" class="btn-primary mt-4">出品を開始する</button>
                         </form>
@@ -389,48 +385,38 @@
 
         // 【変更】商品の期限チェック・削除通知・延長ボタンを追加
 async function loadFiles() {
+    // ファイル一覧を取得
     const { data: files } = await db.from('files').select(`*, profiles!seller_id(username)`).order('created_at', { ascending: false });
+    
+    // ★自分の購入履歴を取得
+    const { data: myPurchases } = await db.from('purchases').select('file_id').eq('user_id', currentUser.id);
+    const purchasedIds = myPurchases ? myPurchases.map(p => p.file_id) : [];
+
     const container = document.getElementById('files-container');
     container.innerHTML = '';
     
     if (files) {
-        const THREE_WEEKS_MS = 21 * 24 * 60 * 60 * 1000;
-        const now = new Date().getTime();
-        
-        const validFiles = [];
-        const expiredMyFiles = [];
-
-        // 期限切れをチェック
         files.forEach(file => {
-            // updated_at(更新日) がなければ created_at(作成日) を基準にする
-            const lastUpdated = new Date(file.updated_at || file.created_at).getTime();
-            if (now - lastUpdated > THREE_WEEKS_MS) {
-                // 自分の商品で3週間経過しているものをリストアップ
-                if (file.seller_id === currentUser.id) {
-                    expiredMyFiles.push(file);
-                }
-            } else {
-                validFiles.push(file); // 有効なものだけ残す
-            }
-        });
-
-        // 自分の期限切れファイルがあればDBから削除してアラート通知
-        if (expiredMyFiles.length > 0) {
-            let deletedTitles = [];
-            for (const f of expiredMyFiles) {
-                await db.from('files').delete().eq('id', f.id);
-                deletedTitles.push(f.title);
-            }
-            alert(`【通知】以下のファイルは3週間変動がなかったため、自動的に削除されました。\n\n・${deletedTitles.join('\n・')}`);
-        }
-
-        // 有効なファイルのみを描画
-        validFiles.forEach(file => {
             const isMine = file.seller_id === currentUser.id;
+            const isPurchased = purchasedIds.includes(file.id); // 買ったことがあるか判定
             
             const thumbnailHtml = file.thumbnail_url 
                 ? `<img src="${file.thumbnail_url}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">`
                 : `<div class="w-full h-full flex items-center justify-center"><i class="fa-solid fa-file-code text-5xl text-crypto-neon/20 group-hover:text-crypto-neon/50 transition-colors"></i></div>`;
+
+            // ボタンの表示分岐
+            let buttonHtml = '';
+            if (isMine) {
+                buttonHtml = `
+                    <div class="flex gap-2">
+                        <button onclick="downloadFile('${file.file_url}')" class="flex-1 bg-blue-500/10 hover:bg-blue-500 text-blue-400 hover:text-white border border-blue-500/30 py-3 rounded-xl text-xs font-black uppercase transition-all">自分のをDL</button>
+                        <button onclick="extendFile('${file.id}')" class="flex-1 bg-crypto-neon/10 hover:bg-crypto-neon text-crypto-neon hover:text-white border border-crypto-neon/30 py-3 rounded-xl text-xs font-black uppercase transition-all">期間延長</button>
+                    </div>`;
+            } else if (isPurchased) {
+                buttonHtml = `<button onclick="downloadFile('${file.file_url}')" class="w-full bg-crypto-accent hover:bg-purple-500 text-white border border-purple-500 py-3 rounded-xl text-xs font-black uppercase transition-all shadow-[0_0_15px_rgba(139,92,246,0.5)]"><i class="fa-solid fa-download mr-2"></i>ダウンロード</button>`;
+            } else {
+                buttonHtml = `<button onclick="buyFile('${file.id}', ${file.price})" class="w-full bg-crypto-success/10 hover:bg-crypto-success text-crypto-success hover:text-white border border-crypto-success/30 py-3 rounded-xl text-xs font-black uppercase transition-all shadow-[0_0_15px_rgba(16,185,129,0.1)]">購入する (${file.price} P)</button>`;
+            }
 
             const card = document.createElement('div');
             card.className = "glass-panel p-5 crypto-card group flex flex-col";
@@ -443,19 +429,12 @@ async function loadFiles() {
                 </div>
                 <h3 class="text-lg font-bold truncate text-white mb-1">${file.title}</h3>
                 <p class="text-xs text-gray-400 mb-3 h-8 line-clamp-2">${file.description || '説明なし'}</p>
-                
                 <div class="mt-auto">
                     <div class="flex items-center gap-2 mb-4">
                         <i class="fa-solid fa-circle-user text-gray-500"></i>
                         <span class="text-[10px] text-gray-400 font-bold tracking-wider">${file.profiles.username}</span>
                     </div>
-                    ${isMine 
-                        ? `<div class="flex gap-2">
-                             <button disabled class="flex-1 bg-white/5 text-gray-500 py-3 rounded-xl text-xs font-bold uppercase border border-white/5">出品中</button>
-                             <button onclick="extendFile('${file.id}')" class="flex-1 bg-crypto-neon/10 hover:bg-crypto-neon text-crypto-neon hover:text-white border border-crypto-neon/30 py-3 rounded-xl text-xs font-black uppercase transition-all shadow-[0_0_15px_rgba(56,189,248,0.1)]">期間延長</button>
-                           </div>` 
-                        : `<button onclick="buyFile('${file.id}', '${file.seller_id}', ${file.price})" class="w-full bg-crypto-success/10 hover:bg-crypto-success text-crypto-success hover:text-white border border-crypto-success/30 py-3 rounded-xl text-xs font-black uppercase transition-all shadow-[0_0_15px_rgba(16,185,129,0.1)] hover:shadow-[0_0_20px_rgba(16,185,129,0.4)]">購入する</button>` 
-                    }
+                    ${buttonHtml}
                 </div>
             `;
             container.appendChild(card);
@@ -544,71 +523,82 @@ async function extendFile(fileId) {
             input.click();
         }
 
-        // ファイル出品処理
         async function handleUpload(e) {
-            e.preventDefault();
-            const title = document.getElementById('file-title').value;
-            const desc = document.getElementById('file-desc').value;
-            const price = document.getElementById('file-price').value;
-            const fileUrl = document.getElementById('file-url-hidden').value;
-            const thumbnailUrl = document.getElementById('thumbnail-url-hidden').value;
+    e.preventDefault();
+    const title = document.getElementById('file-title').value;
+    const desc = document.getElementById('file-desc').value;
+    const price = document.getElementById('file-price').value;
+    const thumbnailUrl = document.getElementById('thumbnail-url-hidden').value;
+    
+    // 選択されたファイルを取得
+    const fileInput = document.getElementById('actual-file-input');
+    const file = fileInput.files[0];
+    if (!file) return alert('ファイルを選択してください');
 
-            if (!fileUrl) return alert('ファイルを選択してください');
+    // 1. Supabase Storageにファイルをアップロード
+    const filePath = `${currentUser.id}/${Date.now()}_${file.name}`;
+    const { error: uploadError } = await db.storage.from('secure_files').upload(filePath, file);
+    
+    if (uploadError) {
+        return alert('ファイルのアップロードに失敗しました: ' + uploadError.message);
+    }
 
-            const { error } = await db.from('files').insert([{
-                seller_id: currentUser.id,
-                title: title,
-                description: desc,
-                price: price,
-                file_url: fileUrl,
-                thumbnail_url: thumbnailUrl || null // サムネイル追加
-            }]);
+    // 2. データベースにファイル情報を保存 (file_urlにはStorageの保存パスを記録)
+    const { error: dbError } = await db.from('files').insert([{
+        seller_id: currentUser.id,
+        title: title,
+        description: desc,
+        price: price,
+        file_url: filePath,
+        thumbnail_url: thumbnailUrl || null
+    }]);
 
-            if (error) {
-                alert('出品失敗: ' + error.message);
-            } else {
-                alert('出品が完了しました！');
-                e.target.reset();
-                document.getElementById('upload-status').style.display = 'none';
-                document.getElementById('upload_widget').innerHTML = '<i class="fa-solid fa-cloud-arrow-up text-2xl text-crypto-neon"></i><span class="text-xs font-bold uppercase">ファイルを選択</span>';
-                document.getElementById('file-url-hidden').value = '';
-                
-                document.getElementById('thumbnail-url-hidden').value = '';
-                document.getElementById('thumbnail_label').innerText = '画像を選択';
-                document.getElementById('thumbnail-preview').classList.add('hidden');
-                
-                loadFiles();
-            }
-        }
+    if (dbError) {
+        alert('出品失敗: ' + dbError.message);
+    } else {
+        alert('出品が完了しました！');
+        e.target.reset();
+        document.getElementById('thumbnail-url-hidden').value = '';
+        document.getElementById('thumbnail_label').innerText = '画像を選択';
+        document.getElementById('thumbnail-preview').classList.add('hidden');
+        loadFiles();
+    }
+}
 
-         async function buyFile(fileId, sellerId, price) {
-            if (currentProfile.balance < price) return alert('ポイントが足りません');
+         async function buyFile(fileId, price) {
+    if (currentProfile.balance < price) return alert('ポイントが足りません');
+    
+    if (confirm(`${price} ポイントで購入しますか？`)) {
+        try {
+            // DB内でポイント決済と購入履歴作成を実行
+            const { error } = await db.rpc('buy_file', { p_file_id: fileId });
+            if (error) throw error;
+
+            alert('購入完了！ダウンロードボタンが解放されました。');
             
-            if (confirm(`${price} ポイントで購入しますか？`)) {
-                try {
-                    // ★修正：フロントで計算せず、作成した安全なデータベース関数を呼び出す
-                    const { error } = await db.rpc('buy_file', { p_file_id: fileId });
+            // ポイント表示とファイル一覧のボタン状態を更新
+            await loadProfile();
+            loadFiles();
 
-                    if (error) {
-                        throw error;
-                    }
-
-                    // 購入成功後にファイルのURLを取得して開く
-                    const { data: fileData, error: fileError } = await db.from('files').select('file_url').eq('id', fileId).single();
-                    if (fileError) throw fileError;
-
-                    alert('購入完了！ファイルのダウンロード画面を開きます。');
-                    if (fileData) window.open(fileData.file_url, '_blank');
-                    
-                    // UI更新
-                    await loadProfile();
-                    loadFiles();
-
-                } catch(e) {
-                    alert('エラーが発生しました: ' + (e.message || '処理に失敗しました'));
-                }
-            }
+        } catch(e) {
+            alert('エラーが発生しました: ' + (e.message || '処理に失敗しました'));
         }
+    }
+}
+
+// ★追加：60秒限定のワンタイムURLを発行してダウンロードする関数
+async function downloadFile(filePath) {
+    // Supabaseから「60秒で自動的に無効になる署名付きURL」を取得
+    const { data, error } = await db.storage.from('secure_files').createSignedUrl(filePath, 60);
+    
+    if (error) {
+        alert('ダウンロード権限がありません、またはエラーが発生しました。');
+        console.error(error);
+    } else {
+        // 発行された使い捨てURLを開く
+        window.open(data.signedUrl, '_blank');
+    }
+}
         // ▼ グローバルチャット機能 ▼
 
         function toggleChat() {
